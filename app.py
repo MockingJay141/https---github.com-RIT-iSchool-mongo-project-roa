@@ -36,7 +36,7 @@ def search():
 
     # Create the query conditions based on latitude and longitude
     conditions = {'text': re.compile(query)}
-    if latitude and longitude:
+    if latitude or longitude:
         conditions['latitude'] = float(latitude)
         conditions['longitude'] = float(longitude)
 
@@ -44,24 +44,36 @@ def search():
     results = list(collection.find(conditions, {'_id': 1, 'user_location': 1}))
 
     # Retrieve the user_location from the _id of the results
-    user_locations = [str(result['user_location']).split('-')[0] for result in results]
+    if latitude and longitude:
+        user_locations = results[0]['user_location']
+    else:
+        user_locations = [str(result['user_location']).split('-')[0] for result in results]
+
+
 
     # Connect to GridFS
     fs = GridFS(db)
 
     # Find the image filenames associated with the user_location
     filenames = []
-    for user_location in user_locations:
-        file_cursor = fs.find({'filename': {'$regex': f'{user_location}-\d+'}})
-        filenames += [file.filename for file in file_cursor]
+    if latitude and longitude:
+        for i in range(1, 4):
+            filenames.append(str(user_locations+"-"+str(i)+".jpg"))
+    else:
+        for user_location in user_locations:
+            file_cursor = fs.find({'filename': {'$regex': f'{user_location}-\d+'}})
+            filenames += [file.filename for file in file_cursor]
 
     # Close the MongoDB connection
     client.close()
 
     # Add image filenames to the results
-    for i, result in enumerate(results):
-        result['image_filenames'] = [filename for filename in filenames if filename.startswith(user_locations[i])]
-
+    if latitude and longitude:
+        for i, result in enumerate(results):
+            result['image_filenames'] = [filename for filename in filenames if filename.startswith(user_locations)]
+    else:
+        for i, result in enumerate(results):
+            result['image_filenames'] = [filename for filename in filenames if filename.startswith(user_locations[i])]
     return json.dumps(results, default=serialize)
 
 @app.route('/document')
