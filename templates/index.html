@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Search Form</title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <script src="script.js"></script>
+  <style>
+    /* Overlay styles */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .overlay.active {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    /* Close button styles */
+    .close-button {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background-color: wheat;
+      padding: 10px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .close-button:hover{
+      background-color: red;
+    }
+
+    .documentOutput {
+      background-color: wheat;
+      position: absolute;
+      margin: 2%;
+      padding: 5%;
+      border-radius: 5%;
+    }
+
+    .result-item {
+      display: block;
+      height: 50px;
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 10px;
+      background-color: wheat;
+      border-radius: 15%;
+    }
+
+    .result-item:hover {
+      background-color: beige;
+    }
+
+    .image-links {
+      display: flex;
+      margin-top: 10px;
+    }
+
+    .image-link {
+      color: blue;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-right: 10px;
+    }
+
+    /* Image Overlay styles */
+    .image-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .image-overlay.active {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .image-overlay img {
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 5px;
+    }
+  </style>
+
+  
+  <script>
+    function search() {
+      var query = document.getElementById('query').value;
+      var latitude = document.getElementById('latitude').value;
+      var longitude = document.getElementById('longitude').value;
+
+      // Send a POST request to the Python backend
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/search', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+          // Display the results
+          var results = JSON.parse(xhr.responseText);
+          var output = document.getElementById('output');
+          output.innerHTML = '';
+
+          if (results.length === 0) {
+            output.innerHTML = 'No results found.';
+          } else {
+            for (var i = 0; i < results.length; i++) {
+              var result = results[i];
+              var resultItem = document.createElement('div');
+              resultItem.classList.add('result-item'); // Add a class to the result item
+              resultItem.textContent = result._id;
+
+              // Create image links if available
+              if (result.image_filenames && result.image_filenames.length > 0) {
+                var imageLinksContainer = document.createElement('div');
+                imageLinksContainer.classList.add('image-links');
+
+                for (var j = 0; j < result.image_filenames.length; j++) {
+                  var imageLink = document.createElement('a');
+                  imageLink.href = '/images/' + result.image_filenames[j];
+                  imageLink.textContent = 'Image ' + (j + 1);
+                  imageLink.classList.add('image-link');
+                  imageLinksContainer.appendChild(imageLink);
+                }
+
+                resultItem.appendChild(imageLinksContainer);
+              }
+
+              resultItem.onclick = function() {
+                displayDocument(this.textContent);
+              };
+              output.appendChild(resultItem);
+            }
+          }
+        }
+      };
+      xhr.send(JSON.stringify({ query: query, latitude: latitude, longitude: longitude }));
+    }
+
+
+    function displayDocument(id) {
+  var validId = id.split('Image')[0].trim();
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/document?id=' + validId, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4 && xhr.status === 200) {
+      var documentData = JSON.parse(xhr.responseText);
+      var documentOutput = document.getElementById('documentOutput');
+      documentOutput.innerHTML = '';
+
+      for (var key in documentData) {
+        if (documentData.hasOwnProperty(key)) {
+          var attribute = document.createElement('p');
+          attribute.textContent = key + ': ' + documentData[key];
+          documentOutput.appendChild(attribute);
+        }
+      }
+
+      // Add a comment box
+      var commentBox = document.createElement('textarea');
+      commentBox.setAttribute('id', 'commentBox');
+      commentBox.setAttribute('placeholder', 'Add a comment...');
+      documentOutput.appendChild(commentBox);
+
+      // Add a submit button for the comment
+      var submitButton = document.createElement('button');
+      submitButton.textContent = 'Submit';
+      submitButton.onclick = function() {
+        var comment = commentBox.value;
+        addComment(validId, comment);
+      };
+      documentOutput.appendChild(submitButton);
+
+      var overlay = document.getElementById('overlay');
+      overlay.classList.add('active');
+    }
+  };
+  xhr.send();
+}
+
+
+
+    function closeDocument() {
+      // Hide the document overlay
+      var overlay = document.getElementById('overlay');
+      overlay.classList.remove('active');
+    }
+
+
+
+  function addComment(id, comment) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/add-comment', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4 && xhr.status === 200) {
+      var response = JSON.parse(xhr.responseText);
+      if (response.success) {
+        alert('Comment added successfully!');
+      } else {
+        alert('Failed to add comment. Please try again.');
+      }
+    }
+  };
+  xhr.send(JSON.stringify({ id: id, comment: comment }));
+}
+
+  </script>
+</head>
+<body>
+  <div class="main">
+    <h1>Search Form</h1>
+    <label for="query">Regex Query:</label>
+    <input type="text" id="query" placeholder="Enter regex query">
+    <br>
+    <label for="latitude">Latitude:</label>
+    <input type="text" id="latitude" placeholder="Enter latitude">
+    <br>
+    <label for="longitude">Longitude:</label>
+    <input type="text" id="longitude" placeholder="Enter longitude">
+    <br>
+    <button onclick="search()">Search</button>
+    <div id="output"></div>
+
+    <!-- Document Overlay -->
+    <div id="overlay" class="overlay">
+      <div id="documentOutput" class="documentOutput"></div>
+      <div class="close-button" onclick="closeDocument()">X</div>
+    </div>
+  </div>
+</body>
+</html>
